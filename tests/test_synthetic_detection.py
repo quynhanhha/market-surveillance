@@ -1,0 +1,1 @@
+"""Synthetic detection tests placeholder."""

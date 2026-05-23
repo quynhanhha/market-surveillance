@@ -1,0 +1,1 @@
+-- Pump-and-dump candidate query placeholder.
