@@ -12,6 +12,7 @@ from src.reporting.daily_summary import generate_daily_summary
 from src.storage.repositories import fetch_alert_evidence, update_alert_status
 from src.ui.charts import (
     alert_counts_by_day,
+    alert_type_bar_chart,
     price_volume_dual_axis_chart,
     selected_symbol_candles,
     severity_bar_chart,
@@ -45,7 +46,7 @@ def overview_page(alerts: pd.DataFrame, candles: pd.DataFrame, selected_symbol: 
         if chart_data.empty:
             st.info("No alerts in the selected filters.")
         else:
-            st.bar_chart(chart_data, x="date", y="count", color="alert_type")
+            st.altair_chart(alert_type_bar_chart(chart_data), use_container_width=True)
     with col_b:
         st.subheader("Severity")
         sev = severity_counts(alerts)

@@ -40,7 +40,46 @@ def severity_bar_chart(severity_data: pd.DataFrame) -> alt.Chart:
                 axis=alt.Axis(labelAngle=0, title="Severity"),
             ),
             y=alt.Y("count:Q", axis=alt.Axis(title="Alerts")),
+            color=alt.Color(
+                "severity:N",
+                scale=alt.Scale(
+                    domain=["Low", "Medium", "High", "Critical"],
+                    range=["#4A9EFF", "#FFB347", "#FF6B6B", "#FF6B6B"],
+                ),
+                legend=None,
+            ),
             tooltip=["severity:N", "count:Q"],
+        )
+        .properties(height=280)
+    )
+
+
+ALERT_TYPE_COLOR_MAP = {
+    "Price Anomaly": "#00B4D8",
+    "Volume Spike": "#FF6B6B",
+    "Pump-and-Dump Candidate": "#FFB347",
+    "Synthetic Wash Trading Pattern": "#A8E6CF",
+    "Synthetic Spoofing/Layering Pattern": "#C3B1E1",
+}
+
+
+def alert_type_bar_chart(alert_counts: pd.DataFrame) -> alt.Chart:
+    """Build a fixed-color alert type bar chart grouped by day."""
+    return (
+        alt.Chart(alert_counts)
+        .mark_bar()
+        .encode(
+            x=alt.X("date:T", axis=alt.Axis(title="Date")),
+            y=alt.Y("count:Q", axis=alt.Axis(title="Alerts")),
+            color=alt.Color(
+                "alert_type:N",
+                scale=alt.Scale(
+                    domain=list(ALERT_TYPE_COLOR_MAP),
+                    range=list(ALERT_TYPE_COLOR_MAP.values()),
+                ),
+                legend=alt.Legend(title="Alert Type"),
+            ),
+            tooltip=["date:T", "alert_type:N", "count:Q"],
         )
         .properties(height=280)
     )
