@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import altair as alt
 import plotly.graph_objects as go
@@ -112,14 +113,10 @@ def price_volume_dual_axis_chart(
     chart_data["close"] = pd.to_numeric(chart_data["close"], errors="coerce")
     chart_data["volume"] = pd.to_numeric(chart_data["volume"], errors="coerce")
     price_data = chart_data[chart_data["close"].notna() & (chart_data["close"] >= 1)]
-    latest_timestamp = chart_data["timestamp"].max()
-    last_3h_start = latest_timestamp - pd.Timedelta(hours=3)
-    visible_volume = chart_data[
-        (chart_data["timestamp"] >= last_3h_start)
-        & (chart_data["timestamp"] <= latest_timestamp)
-    ]["volume"]
-    visible_max_volume = visible_volume.max()
-    volume_axis_max = 0 if pd.isna(visible_max_volume) else float(visible_max_volume) * 2.5
+    visible_volume = chart_data["volume"]
+    visible_volume_ceiling = (
+        0 if visible_volume.dropna().empty else float(np.percentile(visible_volume.dropna(), 95)) * 3
+    )
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(
@@ -156,7 +153,6 @@ def price_volume_dual_axis_chart(
         plot_bgcolor="rgba(0,0,0,0)",
         xaxis={
             "title": "Time",
-            "range": [last_3h_start, latest_timestamp],
             "rangeslider": {
                 "visible": True,
                 "bgcolor": "rgba(0,0,0,0)",
@@ -186,8 +182,11 @@ def price_volume_dual_axis_chart(
         title_text="Volume",
         secondary_y=True,
         showgrid=False,
-        range=[0, volume_axis_max],
+        rangemode="nonnegative",
+        autorange=False,
+        range=[0, visible_volume_ceiling],
         fixedrange=False,
+        minallowed=0,
         automargin=True,
     )
     return fig
