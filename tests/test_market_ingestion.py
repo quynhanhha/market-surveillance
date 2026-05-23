@@ -74,9 +74,14 @@ def test_fetch_ohlcv_success_uses_fake_ccxt_exchange(monkeypatch: pytest.MonkeyP
             assert timeframe == "5m"
             assert limit == 2
             base = 1_777_000_000_000 if symbol == "BTC/USD" else 1_777_000_300_000
+            if symbol == "BTC/USD":
+                return [
+                    [base, 74_000, 74_200, 73_900, 74_100, 12.5],
+                    [base + 300_000, 74_100, 74_300, 74_000, 74_250, 14.0],
+                ]
             return [
-                [base, 100, 110, 95, 105, 12.5],
-                [base + 300_000, 105, 112, 101, 108, 14.0],
+                [base, 2_000, 2_020, 1_990, 2_010, 12.5],
+                [base + 300_000, 2_010, 2_030, 2_000, 2_025, 14.0],
             ]
 
     monkeypatch.setitem(sys.modules, "ccxt", SimpleNamespace(coinbase=FakeExchange))
@@ -89,6 +94,36 @@ def test_fetch_ohlcv_success_uses_fake_ccxt_exchange(monkeypatch: pytest.MonkeyP
     assert candles.attrs["exchange"] == "coinbase"
     assert candles["fetched_at"].nunique() == 1
     assert candles.attrs["latest_candle_timestamp"] == "2026-04-24T03:16:40+00:00"
+
+
+def test_fetch_ohlcv_drops_invalid_btc_close(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Implausible fetched BTC closes are dropped before storage."""
+
+    class FakeExchange:
+        symbols = ["BTC/USD"]
+
+        def __init__(self, config: dict[str, object]) -> None:
+            self.config = config
+
+        def load_markets(self) -> None:
+            return None
+
+        def fetch_ohlcv(
+            self, symbol: str, timeframe: str, limit: int
+        ) -> list[list[float]]:
+            return [
+                [1_777_000_000_000, 74_000, 74_100, 73_900, 74_050, 12.5],
+                [1_777_000_300_000, 74_050, 74_100, 80, 81.67, 14.0],
+            ]
+
+    monkeypatch.setitem(sys.modules, "ccxt", SimpleNamespace(coinbase=FakeExchange))
+
+    candles = fetch_ohlcv("coinbase", ["BTC/USD"], "5m", 2)
+
+    assert candles["close"].tolist() == [74_050.0]
+    assert "Dropping invalid OHLCV close price" in caplog.text
 
 
 def test_load_market_data_falls_back_on_exchange_error(

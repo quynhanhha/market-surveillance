@@ -58,7 +58,7 @@ def fetch_ohlcv(
         frame["fetched_at"] = batch_fetched_at
         frames.append(frame)
 
-    candles = pd.concat(frames, ignore_index=True)
+    candles = _drop_invalid_close_prices(pd.concat(frames, ignore_index=True))
     _attach_attrs(
         candles,
         data_source="live",
@@ -69,6 +69,36 @@ def fetch_ohlcv(
     )
     candles.attrs["last_fetched_at"] = batch_fetched_at
     return candles
+
+
+def _drop_invalid_close_prices(candles: pd.DataFrame) -> pd.DataFrame:
+    """Drop implausible close prices from one fetched OHLCV batch."""
+    if candles.empty:
+        return candles
+
+    frame = candles.copy()
+    frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
+    group_columns = ["exchange", "symbol", "timeframe"]
+    frame["batch_median_close"] = frame.groupby(group_columns)["close"].transform("median")
+    invalid_close = frame["close"].isna()
+    invalid_close |= frame["close"] < (frame["batch_median_close"] * 0.10)
+    invalid_close |= frame["symbol"].astype(str).str.contains("BTC", case=False, na=False) & (
+        frame["close"] < 1000
+    )
+
+    for row in frame[invalid_close].to_dict("records"):
+        LOGGER.warning(
+            "Dropping invalid OHLCV close price: exchange=%s symbol=%s timeframe=%s "
+            "timestamp=%s close=%s batch_median_close=%s",
+            row.get("exchange"),
+            row.get("symbol"),
+            row.get("timeframe"),
+            row.get("timestamp"),
+            row.get("close"),
+            row.get("batch_median_close"),
+        )
+
+    return frame.loc[~invalid_close, MARKET_CANDLE_COLUMNS].reset_index(drop=True)
 
 
 def normalize_ohlcv(

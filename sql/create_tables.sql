@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     severity_score INTEGER NOT NULL,
     exchange TEXT,
     symbol TEXT,
+    account_id TEXT,
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'New',
