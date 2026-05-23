@@ -157,12 +157,15 @@ def test_export_writes_deterministic_sample_files(tmp_path: Path) -> None:
     assert set(paths) == {
         "accounts",
         "account_links",
+        "market_candles",
         "synthetic_orders",
         "synthetic_trades",
     }
     accounts = pd.read_csv(paths["accounts"])
+    market_candles = pd.read_csv(paths["market_candles"])
     orders = pd.read_csv(paths["synthetic_orders"])
     assert len(accounts) == 83
+    assert len(market_candles) == 300
     assert len(orders) >= 8_000
 
 

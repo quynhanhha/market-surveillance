@@ -505,6 +505,8 @@ def generate_synthetic_dataset(seed: int = RANDOM_SEED) -> dict[str, pd.DataFram
 
 def export_synthetic_data(output_dir: Path = DATA_DIR, seed: int = RANDOM_SEED) -> dict[str, Path]:
     """Export deterministic synthetic tables to CSV files."""
+    from src.ingestion.fetch_market_data import export_sample_market_candles
+
     output_dir.mkdir(parents=True, exist_ok=True)
     dataset = generate_synthetic_dataset(seed=seed)
     paths = {
@@ -515,6 +517,10 @@ def export_synthetic_data(output_dir: Path = DATA_DIR, seed: int = RANDOM_SEED) 
     }
     for table_name, path in paths.items():
         dataset[table_name].to_csv(path, index=False)
+    paths["market_candles"] = export_sample_market_candles(
+        output_path=output_dir / "sample_market_candles.csv",
+        seed=seed,
+    )
     return paths
 
 
