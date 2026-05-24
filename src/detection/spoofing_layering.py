@@ -66,17 +66,24 @@ def detect_spoofing_layering(
     orders["price"] = pd.to_numeric(orders["price"], errors="coerce")
     orders["quantity"] = pd.to_numeric(orders["quantity"], errors="coerce")
     orders["notional_value"] = orders["price"] * orders["quantity"]
-    orders["avg_account_order_notional"] = orders.groupby("account_id")["notional_value"].transform("mean")
     orders["cancel_seconds"] = (orders["cancelled_at"] - orders["submitted_at"]).dt.total_seconds()
+    quick_cancelled = (
+        (orders["status"] == "cancelled")
+        & orders["cancelled_at"].notna()
+        & (orders["cancel_seconds"] <= MAX_CANCEL_SECONDS)
+    )
+    historical_average = (
+        orders.loc[~quick_cancelled].groupby("account_id")["notional_value"].mean()
+    )
+    orders["avg_account_order_notional"] = orders["account_id"].map(historical_average)
 
     trades = synthetic_trades.copy()
     trades["timestamp"] = pd.to_datetime(trades["timestamp"], utc=True)
 
     cancelled = orders[
-        (orders["status"] == "cancelled")
+        quick_cancelled
+        & orders["avg_account_order_notional"].notna()
         & (orders["notional_value"] >= orders["avg_account_order_notional"] * LARGE_ORDER_MULTIPLIER)
-        & (orders["cancel_seconds"] <= MAX_CANCEL_SECONDS)
-        & orders["cancelled_at"].notna()
     ].copy()
     if cancelled.empty:
         return _empty_alerts()

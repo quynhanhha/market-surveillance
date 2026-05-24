@@ -89,6 +89,17 @@ def test_detect_spoofing_layering_requires_opposite_trades() -> None:
     assert alerts.empty
 
 
+def test_detect_spoofing_layering_uses_historical_account_average() -> None:
+    """Quick cancelled orders do not inflate the account average used for detection."""
+    orders, trades, accounts = spoofing_rows(include_opposite_trades=True)
+    orders.loc[orders["order_id"].str.startswith("SPOOF_"), "quantity"] = 10.0
+
+    alerts = detect_spoofing_layering(orders, trades, accounts)
+
+    assert len(alerts) == 1
+    assert alerts.iloc[0]["account_id"] == "ACC_S"
+
+
 def wash_trade_rows() -> pd.DataFrame:
     """Return deterministic round-trip trades for a linked account pair."""
     start = datetime(2026, 5, 23, tzinfo=UTC)

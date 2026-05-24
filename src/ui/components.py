@@ -24,6 +24,28 @@ ALERT_TABLE_COLUMNS = [
 ]
 ALERT_STATUSES = ["New", "Under Review", "Escalated", "Closed"]
 SEVERITIES = ["Low", "Medium", "High", "Critical"]
+TIMESTAMP_COLUMNS = {
+    "start_time",
+    "end_time",
+    "created_at",
+    "updated_at",
+    "timestamp",
+    "fetched_at",
+}
+DATAFRAME_COLUMN_WIDTHS = {
+    "alert_id": 80,
+    "alert_type": 220,
+    "severity": 90,
+    "severity_score": 100,
+    "status": 90,
+    "exchange": 90,
+    "symbol": 100,
+    "account_id": 160,
+    "start_time": 160,
+    "end_time": 160,
+    "created_at": 160,
+    "evidence_summary": 300,
+}
 
 
 def render_sidebar(
@@ -123,7 +145,40 @@ def alert_table(alerts: pd.DataFrame) -> pd.DataFrame:
 def render_alert_table(alerts: pd.DataFrame, label: str) -> None:
     """Render a standard alert table."""
     st.subheader(label)
-    st.dataframe(alert_table(alerts), use_container_width=True, hide_index=True)
+    render_dataframe(alert_table(alerts))
+
+
+def render_dataframe(frame: pd.DataFrame) -> None:
+    """Render a dataframe with standard table formatting."""
+    display = format_dataframe_for_display(frame)
+    st.dataframe(
+        display,
+        use_container_width=True,
+        hide_index=True,
+        column_config=dataframe_column_config(display),
+    )
+
+
+def format_dataframe_for_display(frame: pd.DataFrame) -> pd.DataFrame:
+    """Format timestamp-like columns for Streamlit display."""
+    display = frame.copy()
+    for column in display.columns:
+        series = display[column]
+        if _is_timestamp_display_column(column, series):
+            parsed = pd.to_datetime(series, utc=True, errors="coerce")
+            display[column] = series.where(
+                parsed.isna(), parsed.dt.strftime("%Y-%m-%d %H:%M UTC")
+            )
+    return display
+
+
+def dataframe_column_config(frame: pd.DataFrame) -> dict[str, object]:
+    """Return standard Streamlit column widths for known table columns."""
+    return {
+        column: st.column_config.Column(width=width)
+        for column, width in DATAFRAME_COLUMN_WIDTHS.items()
+        if column in frame.columns
+    }
 
 
 def _options(
@@ -135,6 +190,19 @@ def _options(
     if secondary is not None and not secondary.empty and column in secondary:
         values.update(str(value) for value in secondary[column].dropna().unique())
     return ["All", *sorted(values)]
+
+
+def _is_timestamp_display_column(column: object, series: pd.Series) -> bool:
+    if str(column) in TIMESTAMP_COLUMNS:
+        return True
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return True
+    if series.dtype == "object":
+        text = series.dropna().astype(str)
+        if text.empty or not text.str.contains("T", na=False).any():
+            return False
+        return pd.to_datetime(series, utc=True, errors="coerce").notna().any()
+    return False
 
 
 def _date_bounds(candles: pd.DataFrame, alerts: pd.DataFrame) -> tuple[date, date]:

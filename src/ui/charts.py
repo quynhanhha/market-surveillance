@@ -101,7 +101,9 @@ def selected_symbol_candles(candles: pd.DataFrame, symbol: str | None) -> pd.Dat
 
 
 def price_volume_dual_axis_chart(
-    symbol_candles: pd.DataFrame, selected_symbol: str | None = None
+    symbol_candles: pd.DataFrame,
+    selected_symbol: str | None = None,
+    active_range: str = "All",
 ) -> go.Figure:
     """Build a dual-axis price and volume chart for one symbol."""
     chart_data = symbol_candles.reset_index()
@@ -118,6 +120,7 @@ def price_volume_dual_axis_chart(
         0 if visible_volume.dropna().empty else float(np.percentile(visible_volume.dropna(), 95)) * 3
     )
 
+    range_start = _range_start_for_button(active_range, chart_data["timestamp"].max())
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(
         go.Scatter(
@@ -145,13 +148,14 @@ def price_volume_dual_axis_chart(
     fig.update_layout(
         height=500,
         hovermode="x unified",
-        uirevision=selected_symbol,
+        uirevision=None,
         title={"text": f"Price / Volume<br><sup>{resolved_symbol}</sup>"},
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "left", "x": 0},
         margin={"l": 48, "r": 56, "t": 48, "b": 36},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         xaxis={
+            "uirevision": "reset_on_button",
             "title": "Time",
             "rangeslider": {
                 "visible": True,
@@ -170,6 +174,10 @@ def price_volume_dual_axis_chart(
             },
         },
     )
+    if range_start is None:
+        fig.update_xaxes(autorange=True)
+    else:
+        fig.update_xaxes(range=[range_start, chart_data["timestamp"].max()])
     fig.update_yaxes(
         title_text="Price",
         secondary_y=False,
@@ -190,6 +198,20 @@ def price_volume_dual_axis_chart(
         automargin=True,
     )
     return fig
+
+
+def _range_start_for_button(active_range: str, latest_timestamp: pd.Timestamp) -> pd.Timestamp | None:
+    if pd.isna(latest_timestamp):
+        return None
+    if active_range == "15m":
+        return latest_timestamp - pd.Timedelta(minutes=15)
+    if active_range == "1H":
+        return latest_timestamp - pd.Timedelta(hours=1)
+    if active_range == "4H":
+        return latest_timestamp - pd.Timedelta(hours=4)
+    if active_range == "1D":
+        return latest_timestamp - pd.Timedelta(days=1)
+    return None
 
 
 def _selected_or_first_symbol(candles: pd.DataFrame, symbol: str | None) -> str | None:

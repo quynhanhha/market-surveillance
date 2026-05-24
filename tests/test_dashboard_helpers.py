@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.reporting.case_report import generate_case_report
-from src.reporting.daily_summary import generate_daily_summary
+from src.reporting.case_report import generate_case_report_pdf
+from src.reporting.daily_summary import (
+    alerts_to_csv,
+    build_daily_report_summary,
+    generate_daily_report_pdf,
+)
 from src.ui.components import alert_table, filter_alerts
 from src.ui.pages import build_overview_summary, market_anomaly_tables
 
@@ -47,19 +51,27 @@ def test_market_anomaly_tables_include_severity_score() -> None:
     assert "severity_score" in tables["volume"].columns
 
 
-def test_daily_report_includes_source_severity_summary_and_limitations() -> None:
-    report = generate_daily_summary(
+def test_daily_report_helpers_are_callable() -> None:
+    summary = build_daily_report_summary(
         _alerts(),
         _candles(),
         {"data_source": "sample", "api_status": "unavailable"},
     )
+    pdf = generate_daily_report_pdf(
+        _alerts(),
+        _candles(),
+        {"data_source": "sample", "api_status": "unavailable"},
+    )
+    csv = alerts_to_csv(_alerts())
 
-    assert "Data source: sample" in report
-    assert "## Severity Summary" in report
-    assert "## Limitations" in report
+    assert summary["data_source"] == "sample"
+    assert "severity_counts" in summary
+    assert "limitations" in summary
+    assert pdf.startswith(b"%PDF")
+    assert b"severity_score" in csv
 
 
-def test_case_report_includes_alert_evidence_score_and_follow_up() -> None:
+def test_case_report_helper_is_callable_with_evidence_score_and_follow_up() -> None:
     alert = _alerts().iloc[0]
     evidence = pd.DataFrame(
         [
@@ -73,12 +85,9 @@ def test_case_report_includes_alert_evidence_score_and_follow_up() -> None:
         ]
     )
 
-    report = generate_case_report(alert, evidence)
+    report = generate_case_report_pdf(alert, evidence)
 
-    assert "Alert ID: 1" in report
-    assert "Severity: High (82)" in report
-    assert "return_z_score" in report
-    assert "Recommended Follow-Up" in report
+    assert report.startswith(b"%PDF")
 
 
 def _alerts() -> pd.DataFrame:

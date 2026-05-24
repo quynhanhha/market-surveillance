@@ -10,6 +10,7 @@ import pandas as pd
 from src.config.thresholds import (
     ACCOUNT_COUNTS,
     GENERATION_END,
+    LARGE_ORDER_MULTIPLIER,
     PUMP_BURST_COUNT,
     RANDOM_SEED,
     SPOOF_EVENT_COUNT,
@@ -111,6 +112,26 @@ def test_spoofing_layering_scenario_is_embedded() -> None:
         - pd.to_datetime(cancelled["submitted_at"], utc=True)
     ).dt.total_seconds()
     assert cancel_seconds.median() <= 45
+    assert cancel_seconds.max() <= 60
+    event_count = pd.to_datetime(cancelled["submitted_at"], utc=True).dt.floor("min").nunique()
+    assert 4 <= event_count <= 7
+
+    historical_orders = orders[
+        (orders["account_id"] == SPOOF_ACCOUNT)
+        & ~(
+            (orders["symbol"] == "BTC/USDT")
+            & (orders["status"] == "cancelled")
+            & (order_times >= start)
+            & (order_times <= end)
+        )
+    ].copy()
+    historical_notional = (
+        pd.to_numeric(historical_orders["price"]) * pd.to_numeric(historical_orders["quantity"])
+    ).mean()
+    spoof_notional = pd.to_numeric(cancelled["price"]) * pd.to_numeric(cancelled["quantity"])
+    spoof_multiples = spoof_notional / historical_notional
+    assert spoof_multiples.min() >= LARGE_ORDER_MULTIPLIER
+    assert spoof_multiples.max() <= 8.0
 
     opposite_trades = trades[
         (trades["symbol"] == "BTC/USDT")

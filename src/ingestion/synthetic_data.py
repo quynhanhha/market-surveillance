@@ -415,18 +415,17 @@ def inject_spoofing_layering(
     symbol = "BTC/USDT"
     local_rng = np.random.default_rng(RANDOM_SEED + 20)
     base_time = GENERATION_END - timedelta(days=3, hours=6)
-    avg_order_notional = float(
-        accounts.loc[accounts["account_id"] == SPOOF_ACCOUNT, "avg_daily_volume"].iloc[0] / 30
-    )
-    avg_quantity = avg_order_notional / SYMBOL_BASE_PRICES[symbol]
+    avg_order_notional = historical_average_order_notional(orders, SPOOF_ACCOUNT)
+    event_offsets = sorted(int(offset) for offset in local_rng.choice(range(0, 361), size=SPOOF_EVENT_COUNT, replace=False))
 
     for event_index in range(SPOOF_EVENT_COUNT):
-        timestamp = base_time + timedelta(minutes=event_index * 55)
+        timestamp = base_time + timedelta(minutes=event_offsets[event_index])
         price = price_for(symbol, timestamp, local_rng)
-        large_quantity = round(avg_quantity * float(local_rng.uniform(4.2, 7.5)), 6)
+        large_notional = avg_order_notional * float(local_rng.uniform(4.8, 7.8))
+        large_quantity = large_notional / price
         side = "sell" if event_index % 2 == 0 else "buy"
         opposite_side = "buy" if side == "sell" else "sell"
-        cancel_seconds = int(local_rng.choice([18, 24, 33, 41, 52, 180]))
+        cancel_seconds = int(local_rng.choice([18, 24, 33, 41]))
         for layer in range(3):
             orders.append(
                 cancelled_order(
@@ -442,7 +441,7 @@ def inject_spoofing_layering(
                 )
             )
         trade_time = timestamp + timedelta(seconds=cancel_seconds + int(local_rng.integers(60, 160)))
-        trade_quantity = round(avg_quantity * float(local_rng.uniform(0.8, 1.4)), 6)
+        trade_quantity = round((avg_order_notional / price) * float(local_rng.uniform(0.8, 1.4)), 6)
         market_maker_side = "sell" if opposite_side == "buy" else "buy"
         orders.append(filled_order(counters, SPOOF_ACCOUNT, symbol, opposite_side, price, trade_quantity, trade_time, "spoofing_layering"))
         orders.append(filled_order(counters, SCENARIO_MARKET_MAKER, symbol, market_maker_side, price, trade_quantity, trade_time, "spoofing_layering"))
@@ -452,6 +451,18 @@ def inject_spoofing_layering(
             else (SCENARIO_MARKET_MAKER, SPOOF_ACCOUNT)
         )
         trades.append(trade_row(counters, trade_time, symbol, buyer, seller, price, trade_quantity, "spoofing_layering"))
+
+
+def historical_average_order_notional(orders: Iterable[dict[str, Any]], account_id: str) -> float:
+    """Return an account's average notional from already-generated history."""
+    notionals = [
+        float(order["price"]) * float(order["quantity"])
+        for order in orders
+        if order["account_id"] == account_id
+    ]
+    if not notionals:
+        raise ValueError(f"No historical synthetic orders for account: {account_id}")
+    return float(np.mean(notionals))
 
 
 def inject_pump_pressure(
