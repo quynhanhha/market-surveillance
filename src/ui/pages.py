@@ -493,14 +493,62 @@ def _render_centered_overview_table(label: str, frame: pd.DataFrame) -> None:
         )
         display = format_dataframe_for_display(frame).rename(columns=TABLE_DISPLAY_COLUMNS)
         styled_df = display.style.hide(axis="index")
-        styled_df = styled_df.set_table_styles(
-            [
-                {
-                    "selector": "table",
-                    "props": [("table-layout", "auto"), ("width", "auto")],
-                }
+        table_styles = [
+            {
+                "selector": "table",
+                "props": [("table-layout", "auto"), ("width", "auto")],
+            },
+            {
+                "selector": "td:nth-child(1), th:nth-child(1)",
+                "props": [("text-align", "left")],
+            },
+            {
+                "selector": "td:nth-child(2), th:nth-child(2)",
+                "props": [("text-align", "right")],
+            },
+        ]
+        if label == "Top Abnormal-Volume Symbols":
+            table_styles[0]["selector"] = ""
+            table_styles[0]["props"] = [
+                ("table-layout", "auto !important"),
+                ("min-width", "280px !important"),
+                ("word-wrap", "normal !important"),
+                ("overflow-wrap", "normal !important"),
             ]
-        )
+            table_styles.extend(
+                [
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("min-width", "90px !important"),
+                            ("white-space", "nowrap !important"),
+                            ("overflow", "visible !important"),
+                            ("text-overflow", "clip !important"),
+                            ("overflow-wrap", "normal !important"),
+                            ("word-break", "normal !important"),
+                        ],
+                    },
+                    {
+                        "selector": "td:nth-child(2)",
+                        "props": [("min-width", "120px !important")],
+                    },
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("white-space", "nowrap !important"),
+                            ("overflow", "visible !important"),
+                            ("text-overflow", "clip !important"),
+                            ("overflow-wrap", "normal !important"),
+                            ("word-break", "normal !important"),
+                        ],
+                    },
+                    {
+                        "selector": "th:nth-child(2)",
+                        "props": [("min-width", "120px !important")],
+                    },
+                ]
+            )
+        styled_df = styled_df.set_table_styles(table_styles)
         st.markdown(
             "<div style='display:flex; justify-content:center;'>" + styled_df.to_html() + "</div>",
             unsafe_allow_html=True,
