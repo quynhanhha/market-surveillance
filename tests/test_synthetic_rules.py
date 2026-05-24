@@ -60,6 +60,57 @@ def test_detect_wash_trading_requires_confirmed_link() -> None:
     assert alerts.empty
 
 
+def test_detect_wash_trading_requires_linked_accounts() -> None:
+    """Unlinked account pairs do not trigger even with round trips."""
+    links = pd.DataFrame(
+        columns=["link_id", "account_id_a", "account_id_b", "link_type", "confidence"]
+    )
+
+    alerts = detect_wash_trading(wash_trade_rows(), links)
+
+    assert alerts.empty
+
+
+def test_detect_wash_trading_requires_low_net_position_ratio() -> None:
+    """One-sided trading fails the net-position-ratio condition."""
+    links = pd.DataFrame(
+        [
+            {
+                "link_id": 1,
+                "account_id_a": "ACC_A",
+                "account_id_b": "ACC_B",
+                "link_type": "beneficial_ownership",
+                "confidence": 0.90,
+            }
+        ]
+    )
+    trades = wash_trade_rows(round_trip=False)
+
+    alerts = detect_wash_trading(trades, links)
+
+    assert alerts.empty
+
+
+def test_detect_wash_trading_score_increases_with_trade_count_and_notional() -> None:
+    """Higher trade count/notional moves the central score upward."""
+    links = pd.DataFrame(
+        [
+            {
+                "link_id": 1,
+                "account_id_a": "ACC_A",
+                "account_id_b": "ACC_B",
+                "link_type": "beneficial_ownership",
+                "confidence": 0.90,
+            }
+        ]
+    )
+
+    lower = detect_wash_trading(wash_trade_rows(trade_count=6), links)
+    higher = detect_wash_trading(wash_trade_rows(trade_count=10), links)
+
+    assert lower.iloc[0]["severity_score"] < higher.iloc[0]["severity_score"]
+
+
 def test_detect_spoofing_layering_returns_alert() -> None:
     """Repeated large cancellations followed by opposite trades trigger."""
     orders, trades, accounts = spoofing_rows(include_opposite_trades=True)
@@ -89,6 +140,25 @@ def test_detect_spoofing_layering_requires_opposite_trades() -> None:
     assert alerts.empty
 
 
+def test_detect_spoofing_layering_ignores_normal_cancellations() -> None:
+    """Ordinary-sized cancellations do not trigger spoofing/layering."""
+    orders, trades, accounts = spoofing_rows(include_opposite_trades=True)
+    orders.loc[orders["order_id"].str.startswith("SPOOF_"), "quantity"] = 1.0
+
+    alerts = detect_spoofing_layering(orders, trades, accounts)
+
+    assert alerts.empty
+
+
+def test_detect_spoofing_layering_requires_minimum_repeat_count() -> None:
+    """Fewer than three repeated events do not trigger."""
+    orders, trades, accounts = spoofing_rows(include_opposite_trades=True, spoof_count=2)
+
+    alerts = detect_spoofing_layering(orders, trades, accounts)
+
+    assert alerts.empty
+
+
 def test_detect_spoofing_layering_uses_historical_account_average() -> None:
     """Quick cancelled orders do not inflate the account average used for detection."""
     orders, trades, accounts = spoofing_rows(include_opposite_trades=True)
@@ -100,12 +170,16 @@ def test_detect_spoofing_layering_uses_historical_account_average() -> None:
     assert alerts.iloc[0]["account_id"] == "ACC_S"
 
 
-def wash_trade_rows() -> pd.DataFrame:
+def wash_trade_rows(trade_count: int = 6, round_trip: bool = True) -> pd.DataFrame:
     """Return deterministic round-trip trades for a linked account pair."""
     start = datetime(2026, 5, 23, tzinfo=UTC)
     rows = []
-    for index in range(6):
-        buyer, seller = ("ACC_A", "ACC_B") if index % 2 == 0 else ("ACC_B", "ACC_A")
+    for index in range(trade_count):
+        buyer, seller = (
+            ("ACC_A", "ACC_B")
+            if not round_trip or index % 2 == 0
+            else ("ACC_B", "ACC_A")
+        )
         rows.append(
             {
                 "trade_id": f"TRD_{index}",
@@ -123,6 +197,7 @@ def wash_trade_rows() -> pd.DataFrame:
 
 def spoofing_rows(
     include_opposite_trades: bool,
+    spoof_count: int = 3,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Return deterministic orders/trades for spoofing tests."""
     start = datetime(2026, 5, 23, tzinfo=UTC)
@@ -145,7 +220,7 @@ def spoofing_rows(
                 "filled_at": timestamp.isoformat(),
             }
         )
-    for index in range(3):
+    for index in range(spoof_count):
         timestamp = start + timedelta(minutes=index)
         cancel_time = timestamp + timedelta(seconds=30)
         orders.append(

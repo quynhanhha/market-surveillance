@@ -39,6 +39,11 @@ def detect_price_anomalies(market_candles: pd.DataFrame) -> pd.DataFrame:
     candles["timestamp"] = pd.to_datetime(candles["timestamp"], utc=True)
     candles["open"] = pd.to_numeric(candles["open"], errors="coerce")
     candles["close"] = pd.to_numeric(candles["close"], errors="coerce")
+    candles = candles[
+        np.isfinite(candles["open"])
+        & np.isfinite(candles["close"])
+        & (candles["open"] > 0)
+    ].copy()
     candles = candles.sort_values(["exchange", "symbol", "timeframe", "timestamp"])
     candles["return"] = (candles["close"] - candles["open"]) / candles["open"]
 

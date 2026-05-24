@@ -52,6 +52,24 @@ def test_detect_volume_spike_returns_alert_with_evidence() -> None:
         "volume_z_score",
         "volume_multiplier",
     }
+    rolling_mean = next(
+        item["metric_value"]
+        for item in alert["evidence"]
+        if item["metric_name"] == "rolling_mean_volume"
+    )
+    assert rolling_mean < 101
+
+
+def test_detect_volume_spike_score_scales_with_z_score() -> None:
+    """Severity score increases as the volume z-score moves into higher bands."""
+    moderate = detect_volume_spikes(market_candles_with_volume(103))
+    extreme = detect_volume_spikes(market_candles_with_volume(400))
+
+    assert len(moderate) == 1
+    assert len(extreme) == 1
+    assert moderate.iloc[0]["severity_score"] < extreme.iloc[0]["severity_score"]
+    assert moderate.iloc[0]["severity"] == "Low"
+    assert extreme.iloc[0]["severity"] == "Medium"
 
 
 def test_detect_volume_spike_ignores_below_threshold_volume() -> None:
@@ -59,3 +77,12 @@ def test_detect_volume_spike_ignores_below_threshold_volume() -> None:
     alerts = detect_volume_spikes(market_candles_with_volume(102))
 
     assert alerts.empty
+
+
+def test_detect_volume_spike_excludes_current_candle_from_baseline() -> None:
+    """A spike does not mask itself by being included in the rolling baseline."""
+    alerts = detect_volume_spikes(market_candles_with_volume(400))
+    evidence = {item["metric_name"]: item["metric_value"] for item in alerts.iloc[0]["evidence"]}
+
+    assert evidence["rolling_mean_volume"] < 101
+    assert evidence["current_volume"] == 400

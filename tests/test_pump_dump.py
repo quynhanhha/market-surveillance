@@ -10,7 +10,11 @@ from src.config.thresholds import PUMP_WINDOW, REVERSAL_WINDOW, ROLLING_WINDOW
 from src.detection.pump_dump import detect_pump_dump_candidates
 
 
-def pump_dump_candles(trigger: bool = True) -> pd.DataFrame:
+def pump_dump_candles(
+    trigger: bool = True,
+    include_volume_spike: bool = True,
+    include_reversal: bool = True,
+) -> pd.DataFrame:
     """Build candles with an optional pump, volume spike, and reversal."""
     start = datetime(2026, 5, 23, tzinfo=UTC)
     row_count = ROLLING_WINDOW + PUMP_WINDOW + REVERSAL_WINDOW + 2
@@ -22,8 +26,10 @@ def pump_dump_candles(trigger: bool = True) -> pd.DataFrame:
         volume = 100 + (index % 2)
         if trigger and index == peak_index:
             close = 106.0
-            volume = 400.0
-        elif trigger and index == peak_index + 1:
+            volume = 400.0 if include_volume_spike else 100.0
+        elif trigger and not include_reversal and peak_index < index <= peak_index + REVERSAL_WINDOW:
+            close = 106.0
+        elif trigger and include_reversal and index == peak_index + 1:
             close = 102.0
         rows.append(
             {
@@ -83,5 +89,19 @@ def test_detect_pump_dump_candidate_can_include_cross_rule_confirmation() -> Non
 def test_detect_pump_dump_candidate_requires_all_conditions() -> None:
     """A flat series does not trigger."""
     alerts = detect_pump_dump_candidates(pump_dump_candles(trigger=False))
+
+    assert alerts.empty
+
+
+def test_detect_pump_dump_candidate_requires_reversal() -> None:
+    """A pump and volume spike without a reversal does not trigger."""
+    alerts = detect_pump_dump_candidates(pump_dump_candles(include_reversal=False))
+
+    assert alerts.empty
+
+
+def test_detect_pump_dump_candidate_requires_volume_confirmation() -> None:
+    """A pump and reversal without volume confirmation does not trigger."""
+    alerts = detect_pump_dump_candidates(pump_dump_candles(include_volume_spike=False))
 
     assert alerts.empty

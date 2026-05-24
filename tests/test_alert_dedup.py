@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import sys
 
 import pandas as pd
 import pytest
@@ -105,6 +107,25 @@ def test_insert_alerts_allows_different_symbol_same_type() -> None:
 
     count = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
     assert count == 2
+
+
+def test_dedup_key_is_deterministic_across_processes() -> None:
+    """The same dedup inputs produce the same key in separate Python processes."""
+    code = (
+        "from src.detection.severity import make_dedup_key; "
+        "print(make_dedup_key('Volume Spike', 'BTC/USDT', "
+        "'2026-05-23T10:00:00+00:00', '2026-05-23T10:00:00+00:00'))"
+    )
+
+    first = subprocess.check_output([sys.executable, "-c", code], text=True).strip()
+    second = subprocess.check_output([sys.executable, "-c", code], text=True).strip()
+
+    assert first == second == make_dedup_key(
+        "Volume Spike",
+        "BTC/USDT",
+        "2026-05-23T10:00:00+00:00",
+        "2026-05-23T10:00:00+00:00",
+    )
 
 
 def alert_frame(symbol: str):
