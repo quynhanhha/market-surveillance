@@ -60,7 +60,7 @@ def main() -> None:
     st.set_page_config(
         page_title="Crypto Market Surveillance",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     st.markdown(SIDEBAR_WIDTH_STYLE, unsafe_allow_html=True)
     conn = _connection()
