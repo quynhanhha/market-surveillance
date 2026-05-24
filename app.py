@@ -45,11 +45,24 @@ DEFAULT_EXCHANGE = "coinbase"
 DEFAULT_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD"]
 DEFAULT_TIMEFRAME = "5m"
 DEFAULT_LIMIT = 100
+SIDEBAR_WIDTH_STYLE = """
+<style>
+[data-testid="stSidebar"] {
+    min-width: 220px !important;
+    max-width: 220px !important;
+}
+</style>
+"""
 
 
 def main() -> None:
     """Render the six-page Streamlit surveillance dashboard."""
-    st.set_page_config(page_title=APP_TITLE, layout="wide")
+    st.set_page_config(
+        page_title="Crypto Market Surveillance",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+    st.markdown(SIDEBAR_WIDTH_STYLE, unsafe_allow_html=True)
     conn = _connection()
     create_schema(conn)
 
