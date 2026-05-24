@@ -12,6 +12,7 @@ from src.reporting.daily_summary import (
 )
 from src.ui.components import alert_table, filter_alerts
 from src.ui.pages import build_overview_summary, market_anomaly_tables
+from src.ui import pages
 
 
 def test_filter_alerts_applies_severity_status_symbol_and_date_range() -> None:
@@ -49,6 +50,43 @@ def test_market_anomaly_tables_include_severity_score() -> None:
 
     assert "severity_score" in tables["price"].columns
     assert "severity_score" in tables["volume"].columns
+
+
+def test_render_table_outputs_styled_html(monkeypatch) -> None:
+    rendered: dict[str, object] = {}
+
+    def fake_markdown(body: str, unsafe_allow_html: bool = False) -> None:
+        rendered["body"] = body
+        rendered["unsafe_allow_html"] = unsafe_allow_html
+
+    monkeypatch.setattr(pages.st, "markdown", fake_markdown)
+
+    pages._render_table(alert_table(_alerts().head(1)))
+
+    body = str(rendered["body"])
+    assert rendered["unsafe_allow_html"] is True
+    assert "<table" in body
+    assert "font-weight: bold" in body
+    assert "text-align: center" in body
+    assert "background-color: rgba(255, 107, 107, 0.2)" in body
+    assert "blank level0" not in body
+
+
+def test_render_table_empty_state_uses_info(monkeypatch) -> None:
+    rendered: dict[str, str] = {}
+
+    def fake_info(message: str) -> None:
+        rendered["message"] = message
+
+    def fake_markdown(body: str, unsafe_allow_html: bool = False) -> None:
+        rendered["body"] = body
+
+    monkeypatch.setattr(pages.st, "info", fake_info)
+    monkeypatch.setattr(pages.st, "markdown", fake_markdown)
+
+    pages._render_table(pd.DataFrame(), empty_message="Nothing here.")
+
+    assert rendered == {"message": "Nothing here."}
 
 
 def test_daily_report_helpers_are_callable() -> None:

@@ -26,7 +26,7 @@ from src.ui.charts import (
     top_price_movement_symbols,
     top_volume_symbols,
 )
-from src.ui.components import ALERT_STATUSES, alert_table, dataframe_column_config, format_dataframe_for_display
+from src.ui.components import ALERT_STATUSES, alert_table, format_dataframe_for_display
 
 
 PRICE_ALERT = "Price Anomaly"
@@ -35,6 +35,14 @@ PUMP_ALERT = "Pump-and-Dump Candidate"
 WASH_ALERT = "Synthetic Wash Trading Pattern"
 SPOOF_ALERT = "Synthetic Spoofing/Layering Pattern"
 GENERIC_EMPTY_TABLE_MESSAGE = "No data available for the current filters."
+TABLE_HEADER_STYLE = """
+<style>
+thead th {
+    font-weight: bold !important;
+    text-align: center !important;
+}
+</style>
+"""
 EMPTY_TABLE_MESSAGES = {
     "Pump-and-Dump Candidates": (
         "No pump-and-dump candidates detected in the current monitoring window. "
@@ -56,6 +64,7 @@ EMPTY_TABLE_MESSAGES = {
 
 def overview_page(alerts: pd.DataFrame, candles: pd.DataFrame, selected_symbol: str) -> None:
     """Render the dashboard overview."""
+    _apply_table_header_styles()
     st.title("Overview")
     metric_columns = st.columns(4)
     metric_columns[0].metric("Total Alerts", f"{len(alerts):,}")
@@ -100,16 +109,17 @@ def overview_page(alerts: pd.DataFrame, candles: pd.DataFrame, selected_symbol: 
     col_c, col_d = st.columns(2)
     with col_c:
         st.subheader("Top Abnormal-Volume Symbols")
-        _render_table(top_volume_symbols(candles))
+        _render_centered_table(_format_top_volume_table(top_volume_symbols(candles)))
     with col_d:
         st.subheader("Top Price-Movement Symbols")
-        _render_table(top_price_movement_symbols(candles))
+        _render_centered_table(_format_top_price_movement_table(top_price_movement_symbols(candles)))
 
     _render_alert_table(alerts.head(20), "Latest Alerts")
 
 
 def market_anomalies_page(alerts: pd.DataFrame) -> None:
     """Render market anomaly alert tables."""
+    _apply_table_header_styles()
     st.title("Market Anomalies")
     _render_alert_table(alerts[alerts["alert_type"] == PRICE_ALERT], "Price Anomalies")
     _render_alert_table(alerts[alerts["alert_type"] == VOLUME_ALERT], "Volume Spikes")
@@ -120,6 +130,7 @@ def synthetic_cases_page(
     conn: sqlite3.Connection, alerts: pd.DataFrame, account_links: pd.DataFrame
 ) -> None:
     """Render synthetic surveillance case tables and status controls."""
+    _apply_table_header_styles()
     st.title("Synthetic Surveillance Cases")
     synthetic = alerts[alerts["alert_type"].isin([WASH_ALERT, SPOOF_ALERT])]
     _render_alert_table(synthetic[synthetic["alert_type"] == WASH_ALERT], "Wash Trading Cases")
@@ -136,6 +147,7 @@ def alert_detail_page(
     conn: sqlite3.Connection, alerts: pd.DataFrame, candles: pd.DataFrame
 ) -> None:
     """Render one alert investigation detail view."""
+    _apply_table_header_styles()
     st.title("Alert Detail")
     if alerts.empty:
         st.info("No alerts match the selected filters.")
@@ -191,6 +203,7 @@ def daily_report_page(
     alerts: pd.DataFrame, candles: pd.DataFrame, metadata: dict[str, str]
 ) -> None:
     """Render the daily surveillance report."""
+    _apply_table_header_styles()
     st.title("Daily Report")
     summary = build_daily_report_summary(alerts, candles, metadata)
 
@@ -283,12 +296,58 @@ def _render_table(
         st.info(empty_message)
         return
     display = format_dataframe_for_display(frame)
-    st.dataframe(
-        display,
-        use_container_width=True,
-        hide_index=True,
-        column_config=dataframe_column_config(display),
+    dataframe = display.style.hide(axis="index")
+    if "severity" in display.columns:
+        dataframe = dataframe.apply(color_severity_row, axis=1)
+    dataframe = dataframe.set_table_styles(
+        [
+            {
+                "selector": "th",
+                "props": [
+                    ("font-weight", "bold"),
+                    ("text-align", "center"),
+                ],
+            }
+        ]
     )
+    st.markdown(dataframe.to_html(), unsafe_allow_html=True)
+
+
+def _render_centered_table(frame: pd.DataFrame) -> None:
+    _, table_column, _ = st.columns([1, 6, 1])
+    with table_column:
+        _render_table(frame)
+
+
+def _format_top_volume_table(frame: pd.DataFrame) -> pd.DataFrame:
+    display = frame.copy()
+    if "volume" in display.columns:
+        display["volume"] = pd.to_numeric(display["volume"], errors="coerce").round(2)
+    return display
+
+
+def _format_top_price_movement_table(frame: pd.DataFrame) -> pd.DataFrame:
+    display = frame.copy()
+    if "absolute_return" in display.columns:
+        returns = pd.to_numeric(display["absolute_return"], errors="coerce")
+        display["absolute_return"] = returns.map(
+            lambda value: "" if pd.isna(value) else f"{value:.4%}"
+        )
+    return display
+
+
+def _apply_table_header_styles() -> None:
+    st.markdown(TABLE_HEADER_STYLE, unsafe_allow_html=True)
+
+
+def color_severity_row(row: pd.Series) -> list[str]:
+    colors = {
+        "High": "background-color: rgba(255, 107, 107, 0.2)",
+        "Medium": "background-color: rgba(255, 179, 71, 0.2)",
+        "Low": "background-color: rgba(74, 158, 255, 0.2)",
+    }
+    color = colors.get(row["severity"], "")
+    return [color] * len(row)
 
 
 def _empty_table_message(label: str) -> str:
