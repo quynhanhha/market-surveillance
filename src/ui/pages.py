@@ -35,6 +35,12 @@ PUMP_ALERT = "Pump-and-Dump Candidate"
 WASH_ALERT = "Synthetic Wash Trading Pattern"
 SPOOF_ALERT = "Synthetic Spoofing/Layering Pattern"
 GENERIC_EMPTY_TABLE_MESSAGE = "No data available for the current filters."
+SEVERITY_COLORS = {
+    "Critical": {"bg": "rgba(139, 0, 0, 0.25)", "text": "#8B0000"},
+    "High": {"bg": "rgba(255, 107, 107, 0.2)", "text": "#cc3300"},
+    "Medium": {"bg": "rgba(255, 179, 71, 0.2)", "text": "#b35900"},
+    "Low": {"bg": "rgba(74, 158, 255, 0.2)", "text": "#1a5fa8"},
+}
 TABLE_HEADER_STYLE = """
 <style>
 table {
@@ -101,6 +107,19 @@ EMPTY_TABLE_MESSAGES = {
 
 def overview_page(alerts: pd.DataFrame, candles: pd.DataFrame, selected_symbol: str) -> None:
     """Render the dashboard overview."""
+    st.markdown(
+        """
+    <script>
+        const main = window.parent.document.querySelector(
+            'section.main'
+        );
+        if (main) {
+            main.scrollTo(0, 0);
+        }
+    </script>
+    """,
+        unsafe_allow_html=True,
+    )
     _apply_table_header_styles()
     st.title("Overview")
     metric_columns = st.columns(4)
@@ -145,17 +164,34 @@ def overview_page(alerts: pd.DataFrame, candles: pd.DataFrame, selected_symbol: 
 
     col_c, col_d = st.columns(2)
     with col_c:
-        st.subheader("Top Abnormal-Volume Symbols")
-        _render_centered_table(_format_top_volume_table(top_volume_symbols(candles)))
+        _render_centered_overview_table(
+            "Top Abnormal-Volume Symbols",
+            _format_top_volume_table(top_volume_symbols(candles)),
+        )
     with col_d:
-        st.subheader("Top Price-Movement Symbols")
-        _render_centered_table(_format_top_price_movement_table(top_price_movement_symbols(candles)))
+        _render_centered_overview_table(
+            "Top Price-Movement Symbols",
+            _format_top_price_movement_table(top_price_movement_symbols(candles)),
+        )
 
     _render_alert_table(alerts.head(20), "Latest Alerts")
 
 
 def market_anomalies_page(alerts: pd.DataFrame) -> None:
     """Render market anomaly alert tables."""
+    st.markdown(
+        """
+    <script>
+        const main = window.parent.document.querySelector(
+            'section.main'
+        );
+        if (main) {
+            main.scrollTo(0, 0);
+        }
+    </script>
+    """,
+        unsafe_allow_html=True,
+    )
     _apply_table_header_styles()
     st.title("Market Anomalies")
     _render_alert_table(alerts[alerts["alert_type"] == PRICE_ALERT], "Price Anomalies")
@@ -167,6 +203,19 @@ def synthetic_cases_page(
     conn: sqlite3.Connection, alerts: pd.DataFrame, account_links: pd.DataFrame
 ) -> None:
     """Render synthetic surveillance case tables and status controls."""
+    st.markdown(
+        """
+    <script>
+        const main = window.parent.document.querySelector(
+            'section.main'
+        );
+        if (main) {
+            main.scrollTo(0, 0);
+        }
+    </script>
+    """,
+        unsafe_allow_html=True,
+    )
     _apply_table_header_styles()
     st.title("Synthetic Surveillance Cases")
     synthetic = alerts[alerts["alert_type"].isin([WASH_ALERT, SPOOF_ALERT])]
@@ -184,6 +233,19 @@ def alert_detail_page(
     conn: sqlite3.Connection, alerts: pd.DataFrame, candles: pd.DataFrame
 ) -> None:
     """Render one alert investigation detail view."""
+    st.markdown(
+        """
+    <script>
+        const main = window.parent.document.querySelector(
+            'section.main'
+        );
+        if (main) {
+            main.scrollTo(0, 0);
+        }
+    </script>
+    """,
+        unsafe_allow_html=True,
+    )
     _apply_table_header_styles()
     st.title("Alert Detail")
     if alerts.empty:
@@ -199,7 +261,17 @@ def alert_detail_page(
     evidence = fetch_alert_evidence(conn, alert_id)
 
     cols = st.columns(5)
-    cols[0].metric("Severity", str(alert["severity"]))
+    severity = str(alert["severity"])
+    severity_style = SEVERITY_COLORS.get(severity, {"bg": "rgba(0, 0, 0, 0.06)", "text": "#333"})
+    cols[0].markdown(
+        f"""
+<div style="background-color: {severity_style["bg"]}; padding: 12px; border-radius: 8px; text-align: center;">
+    <div style="font-size: 0.85rem; color: {severity_style["text"]};">Severity</div>
+    <div style="font-size: 1.5rem; font-weight: bold; color: {severity_style["text"]};">{severity}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
     cols[1].metric("Severity Score", str(alert["severity_score"]))
     cols[2].metric("Status", str(alert["status"]))
     cols[3].metric("Symbol", str(alert.get("symbol") or "N/A"))
@@ -240,26 +312,71 @@ def daily_report_page(
     alerts: pd.DataFrame, candles: pd.DataFrame, metadata: dict[str, str]
 ) -> None:
     """Render the daily surveillance report."""
+    st.markdown(
+        """
+    <script>
+        const main = window.parent.document.querySelector(
+            'section.main'
+        );
+        if (main) {
+            main.scrollTo(0, 0);
+        }
+    </script>
+    """,
+        unsafe_allow_html=True,
+    )
     _apply_table_header_styles()
     st.title("Daily Report")
     summary = build_daily_report_summary(alerts, candles, metadata)
+    data_source = str(summary["data_source"]).title()
+    api_status = str(summary["api_status"]).title()
+    if api_status == "Ok":
+        api_status = "OK"
 
     header_columns = st.columns(3)
     header_columns[0].metric("Total Alerts", f"{summary['total_alerts']:,}")
     header_columns[1].metric("Symbols Monitored", f"{len(summary['symbols']):,}")
-    header_columns[2].metric("Data Source", str(summary["data_source"]))
+    header_columns[2].metric("Data Source", data_source)
     st.write(f"Report date: {summary['report_date']}")
     st.write(f"Symbols monitored: {', '.join(summary['symbols']) or 'None'}")
-    st.caption(f"API status: {summary['api_status']} | Last fetched: {summary['last_fetched_at']}")
+    st.caption(f"API status: {api_status} | Last fetched: {summary['last_fetched_at']}")
 
     st.subheader("Severity Summary")
     severity_counts = _severity_counts_dict(summary["severity_counts"])
     severity_columns = st.columns(4)
+    severity_styles = {
+        "Critical": SEVERITY_COLORS["Critical"],
+        "High": SEVERITY_COLORS["High"],
+        "Medium": SEVERITY_COLORS["Medium"],
+        "Low": SEVERITY_COLORS["Low"],
+    }
     for column, severity in zip(severity_columns, ["Critical", "High", "Medium", "Low"], strict=True):
-        column.metric(severity, f"{severity_counts.get(severity, 0):,}")
+        count = f"{severity_counts.get(severity, 0):,}"
+        style = severity_styles[severity]
+        column.markdown(
+            f"""
+<div style="background-color: {style["bg"]}; padding: 16px; border-radius: 8px; text-align: center;">
+    <div style="font-size: 0.85rem; color: {style["text"]};">{severity}</div>
+    <div style="font-size: 2rem; font-weight: bold; color: {style["text"]};">{count}</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
 
     st.subheader("Alert Type Breakdown")
-    alert_type_breakdown = _counts_frame(summary["type_counts"], "alert_type")
+    st.markdown(
+        """
+<style>
+table td:nth-child(2), table th:nth-child(2) {
+    text-align: center !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+    alert_type_breakdown = _counts_frame(summary["type_counts"], "alert_type").rename(
+        columns={"count": "Count"}
+    )
     _render_table(alert_type_breakdown)
 
     st.subheader("Highest Severity Alerts")
@@ -286,6 +403,19 @@ def daily_report_page(
 
 def methodology_page() -> None:
     """Render methodology and limitations."""
+    st.markdown(
+        """
+    <script>
+        const main = window.parent.document.querySelector(
+            'section.main'
+        );
+        if (main) {
+            main.scrollTo(0, 0);
+        }
+    </script>
+    """,
+        unsafe_allow_html=True,
+    )
     st.title("Methodology & Limitations")
     st.markdown(
         """
@@ -350,16 +480,40 @@ def _render_table(
     st.markdown(dataframe.to_html(), unsafe_allow_html=True)
 
 
-def _render_centered_table(frame: pd.DataFrame) -> None:
-    _, table_column, _ = st.columns([1, 6, 1])
-    with table_column:
-        _render_table(frame)
+def _render_centered_overview_table(label: str, frame: pd.DataFrame) -> None:
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        st.markdown(
+            f"""
+<div style="display: flex; flex-direction: column; align-items: center;">
+    <h3 style="white-space: nowrap; margin-bottom: 8px; text-align: center;">{label}</h3>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        display = format_dataframe_for_display(frame).rename(columns=TABLE_DISPLAY_COLUMNS)
+        styled_df = display.style.hide(axis="index")
+        styled_df = styled_df.set_table_styles(
+            [
+                {
+                    "selector": "table",
+                    "props": [("table-layout", "auto"), ("width", "auto")],
+                }
+            ]
+        )
+        st.markdown(
+            "<div style='display:flex; justify-content:center;'>" + styled_df.to_html() + "</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def _format_top_volume_table(frame: pd.DataFrame) -> pd.DataFrame:
     display = frame.copy()
     if "volume" in display.columns:
-        display["volume"] = pd.to_numeric(display["volume"], errors="coerce").round(2)
+        volumes = pd.to_numeric(display["volume"], errors="coerce")
+        display["volume"] = volumes.map(
+            lambda value: "" if pd.isna(value) else f"{value:,.2f}"
+        )
     return display
 
 
@@ -378,12 +532,8 @@ def _apply_table_header_styles() -> None:
 
 
 def color_severity_row(row: pd.Series) -> list[str]:
-    colors = {
-        "High": "background-color: rgba(255, 107, 107, 0.2)",
-        "Medium": "background-color: rgba(255, 179, 71, 0.2)",
-        "Low": "background-color: rgba(74, 158, 255, 0.2)",
-    }
-    color = colors.get(row["Severity"], "")
+    color = SEVERITY_COLORS.get(str(row["Severity"]), {}).get("bg", "")
+    color = f"background-color: {color}" if color else ""
     return [color] * len(row)
 
 
