@@ -51,9 +51,35 @@ td, th {
 thead th {
     font-weight: bold !important;
     text-align: center !important;
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
 }
 </style>
 """
+TABLE_DISPLAY_COLUMNS = {
+    "alert_id": "ID",
+    "alert_type": "Type",
+    "severity": "Severity",
+    "severity_score": "Score",
+    "status": "Status",
+    "exchange": "Exchange",
+    "symbol": "Symbol",
+    "account_id": "Account",
+    "start_time": "Start",
+    "end_time": "End",
+    "evidence_summary": "Summary",
+    "metric_name": "Metric",
+    "metric_value": "Value",
+    "threshold_value": "Threshold",
+    "comparison_operator": "Operator",
+    "explanation": "Explanation",
+    "trade_count": "Trades",
+    "notional_value": "Notional",
+    "link_confidence": "Confidence",
+    "absolute_return": "Return",
+    "volume": "Volume",
+}
 EMPTY_TABLE_MESSAGES = {
     "Pump-and-Dump Candidates": (
         "No pump-and-dump candidates detected in the current monitoring window. "
@@ -306,9 +332,9 @@ def _render_table(
     if frame.empty:
         st.info(empty_message)
         return
-    display = format_dataframe_for_display(frame)
+    display = format_dataframe_for_display(frame).rename(columns=TABLE_DISPLAY_COLUMNS)
     dataframe = display.style.hide(axis="index")
-    if "severity" in display.columns:
+    if "Severity" in display.columns:
         dataframe = dataframe.apply(color_severity_row, axis=1)
     dataframe = dataframe.set_table_styles(
         [
@@ -357,7 +383,7 @@ def color_severity_row(row: pd.Series) -> list[str]:
         "Medium": "background-color: rgba(255, 179, 71, 0.2)",
         "Low": "background-color: rgba(74, 158, 255, 0.2)",
     }
-    color = colors.get(row["severity"], "")
+    color = colors.get(row["Severity"], "")
     return [color] * len(row)
 
 
