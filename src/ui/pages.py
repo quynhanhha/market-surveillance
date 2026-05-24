@@ -136,14 +136,14 @@ def overview_page(alerts: pd.DataFrame, candles: pd.DataFrame, selected_symbol: 
         if chart_data.empty:
             st.info("No alerts in the selected filters.")
         else:
-            st.altair_chart(alert_type_bar_chart(chart_data), use_container_width=True)
+            st.plotly_chart(alert_type_bar_chart(chart_data), use_container_width=True)
     with col_b:
         st.subheader("Severity")
         sev = severity_counts(alerts)
         if sev.empty:
             st.info("No severity rows.")
         else:
-            st.altair_chart(severity_bar_chart(sev), use_container_width=True)
+            st.plotly_chart(severity_bar_chart(sev), use_container_width=True)
 
     st.subheader("Selected Symbol Price / Volume")
     chart_symbols = _available_symbols(candles)

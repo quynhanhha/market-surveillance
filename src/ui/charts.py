@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import altair as alt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -29,30 +28,40 @@ def severity_counts(alerts: pd.DataFrame) -> pd.DataFrame:
     return alerts.groupby("severity", dropna=False).size().reset_index(name="count")
 
 
-def severity_bar_chart(severity_data: pd.DataFrame) -> alt.Chart:
+def severity_bar_chart(severity_data: pd.DataFrame) -> go.Figure:
     """Build a severity bar chart with horizontal x-axis labels."""
-    return (
-        alt.Chart(severity_data)
-        .mark_bar(color="#00B4D8")
-        .encode(
-            x=alt.X(
-                "severity:N",
-                sort=["Low", "Medium", "High", "Critical"],
-                axis=alt.Axis(labelAngle=0, title="Severity"),
-            ),
-            y=alt.Y("count:Q", axis=alt.Axis(title="Alerts")),
-            color=alt.Color(
-                "severity:N",
-                scale=alt.Scale(
-                    domain=["Low", "Medium", "High", "Critical"],
-                    range=["#4A9EFF", "#FFB347", "#FF6B6B", "#FF6B6B"],
-                ),
-                legend=None,
-            ),
-            tooltip=["severity:N", "count:Q"],
-        )
-        .properties(height=280)
+    severity_order = ["Low", "Medium", "High", "Critical"]
+    severity_colors = {
+        "Low": "#4A9EFF",
+        "Medium": "#FFB347",
+        "High": "#FF6B6B",
+        "Critical": "#FF6B6B",
+    }
+    chart_data = severity_data.copy()
+    chart_data["severity"] = pd.Categorical(
+        chart_data["severity"],
+        categories=severity_order,
+        ordered=True,
     )
+    chart_data = chart_data.sort_values("severity")
+    fig = go.Figure(
+        go.Bar(
+            x=chart_data["severity"].astype(str),
+            y=chart_data["count"],
+            marker={"color": [severity_colors.get(str(severity), "#00B4D8") for severity in chart_data["severity"]]},
+            hovertemplate="Severity: %{x}<br>Alerts: %{y}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=280,
+        margin={"l": 48, "r": 24, "t": 12, "b": 36},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+        xaxis={"title": "Severity", "categoryorder": "array", "categoryarray": severity_order},
+        yaxis={"title": "Alerts", "gridcolor": "rgba(128,128,128,0.18)", "rangemode": "nonnegative"},
+    )
+    return fig
 
 
 ALERT_TYPE_COLOR_MAP = {
@@ -64,26 +73,30 @@ ALERT_TYPE_COLOR_MAP = {
 }
 
 
-def alert_type_bar_chart(alert_counts: pd.DataFrame) -> alt.Chart:
+def alert_type_bar_chart(alert_counts: pd.DataFrame) -> go.Figure:
     """Build a fixed-color alert type bar chart grouped by day."""
-    return (
-        alt.Chart(alert_counts)
-        .mark_bar()
-        .encode(
-            x=alt.X("date:T", axis=alt.Axis(title="Date")),
-            y=alt.Y("count:Q", axis=alt.Axis(title="Alerts")),
-            color=alt.Color(
-                "alert_type:N",
-                scale=alt.Scale(
-                    domain=list(ALERT_TYPE_COLOR_MAP),
-                    range=list(ALERT_TYPE_COLOR_MAP.values()),
-                ),
-                legend=alt.Legend(title="Alert Type"),
-            ),
-            tooltip=["date:T", "alert_type:N", "count:Q"],
+    fig = go.Figure()
+    for alert_type, type_counts in alert_counts.groupby("alert_type", sort=False):
+        fig.add_trace(
+            go.Bar(
+                x=type_counts["date"],
+                y=type_counts["count"],
+                name=str(alert_type),
+                marker={"color": ALERT_TYPE_COLOR_MAP.get(str(alert_type), "#00B4D8")},
+                hovertemplate="Date: %{x}<br>Alert Type: %{fullData.name}<br>Alerts: %{y}<extra></extra>",
+            )
         )
-        .properties(height=280)
+    fig.update_layout(
+        height=280,
+        barmode="stack",
+        legend={"title": {"text": "Alert Type"}},
+        margin={"l": 48, "r": 24, "t": 12, "b": 36},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis={"title": "Date"},
+        yaxis={"title": "Alerts", "gridcolor": "rgba(128,128,128,0.18)", "rangemode": "nonnegative"},
     )
+    return fig
 
 
 def selected_symbol_candles(candles: pd.DataFrame, symbol: str | None) -> pd.DataFrame:
