@@ -37,6 +37,17 @@ SPOOF_ALERT = "Synthetic Spoofing/Layering Pattern"
 GENERIC_EMPTY_TABLE_MESSAGE = "No data available for the current filters."
 TABLE_HEADER_STYLE = """
 <style>
+table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    word-wrap: break-word !important;
+}
+td, th {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 200px !important;
+    white-space: normal !important;
+}
 thead th {
     font-weight: bold !important;
     text-align: center !important;
