@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -462,6 +463,7 @@ def _render_table(
     if frame.empty:
         st.info(empty_message)
         return
+    frame = _normalize_table_missing_values(frame)
     display = format_dataframe_for_display(frame).rename(columns=TABLE_DISPLAY_COLUMNS)
     dataframe = display.style.hide(axis="index")
     if "Severity" in display.columns:
@@ -491,6 +493,7 @@ def _render_centered_overview_table(label: str, frame: pd.DataFrame) -> None:
 """,
             unsafe_allow_html=True,
         )
+        frame = _normalize_table_missing_values(frame)
         display = format_dataframe_for_display(frame).rename(columns=TABLE_DISPLAY_COLUMNS)
         styled_df = display.style.hide(axis="index")
         table_styles = [
@@ -577,6 +580,12 @@ def _format_top_price_movement_table(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _apply_table_header_styles() -> None:
     st.markdown(TABLE_HEADER_STYLE, unsafe_allow_html=True)
+
+
+def _normalize_table_missing_values(frame: pd.DataFrame) -> pd.DataFrame:
+    df = frame.copy()
+    df = df.where(pd.notnull(df), "—")
+    return df.replace({np.nan: "—", "nan": "—", "None": "—", None: "—"})
 
 
 def color_severity_row(row: pd.Series) -> list[str]:
